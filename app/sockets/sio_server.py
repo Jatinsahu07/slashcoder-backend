@@ -1,10 +1,10 @@
 # app/sockets/sio_server.py
 # -------------------------------------------------------
-# Slashcoder Unified Socket.IO Server
+# SlashCoder Unified Socket.IO Server
 # Chatrooms + Matchmaking share the SAME `sio` instance
 # -------------------------------------------------------
 
-from app.sockets.matchmaking import sio  # ← import the single Socket.IO server
+from app.sockets.matchmaking import sio  # ← Import the shared global Socket.IO server
 
 
 # -------------------------------------------------------
@@ -20,7 +20,6 @@ async def join_room(sid, data):
         "username": "Jatin"
     }
     """
-
     room = data.get("roomId")
     username = data.get("username", "Anonymous")
 
@@ -28,18 +27,16 @@ async def join_room(sid, data):
         print(f"[join_room] ERROR: missing roomId (sid={sid})")
         return
 
-    # Join the room
     await sio.enter_room(sid, room)
     print(f"[CHAT] {username} joined room {room}")
 
-    # Notify everyone in that room
     await sio.emit(
         "system_message",
         {
             "roomId": room,
-            "msg": f"{username} joined the room"
+            "msg": f"{username} joined the room",
         },
-        room=room
+        room=room,
     )
 
 
@@ -57,12 +54,10 @@ async def send_message(sid, data):
         "senderName": "Jatin"
     }
     """
-
     room = data.get("roomId")
     text = data.get("text")
     sender = data.get("senderName", "Anonymous")
 
-    # Validation
     if not room:
         print(f"[send_message] ERROR: missing roomId (sid={sid})")
         return
@@ -72,20 +67,19 @@ async def send_message(sid, data):
 
     print(f"[CHAT][{room}] {sender}: {text}")
 
-    # Broadcast message to room
     await sio.emit(
         "receive_message",
         {
             "roomId": room,
             "text": text,
-            "senderName": sender
+            "senderName": sender,
         },
-        room=room
+        room=room,
     )
 
 
 # -------------------------------------------------------
-# 🔹 OPTIONAL: User disconnected from chat (not required)
+# 🔹 OPTIONAL: User disconnected from chat
 # -------------------------------------------------------
 @sio.event
 async def disconnect(sid):
