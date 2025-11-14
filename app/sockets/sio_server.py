@@ -1,54 +1,78 @@
 # app/sockets/sio_server.py
 # -------------------------------------------------------
 # Slashcoder Unified Socket.IO Server
-# - Uses the SINGLE sio instance from matchmaking.py
-# - Adds only chatroom events here
+# Chatrooms + Matchmaking share the SAME `sio` instance
 # -------------------------------------------------------
 
-from app.sockets.matchmaking import sio   # ← ONLY import sio (NO register function)
+from app.sockets.matchmaking import sio  # ← import the single Socket.IO server
 
 
 # -------------------------------------------------------
-# CHATROOM EVENTS
+# 🔹 Chatroom: Join Room
 # -------------------------------------------------------
-
 @sio.event
 async def join_room(sid, data):
     """
-    data = { roomId, username }
+    Join a socket.io chatroom
+    data example:
+    {
+        "roomId": "python-room",
+        "username": "Jatin"
+    }
     """
+
     room = data.get("roomId")
     username = data.get("username", "Anonymous")
 
     if not room:
-        print(f"[join_room] Missing roomId from {sid}")
+        print(f"[join_room] ERROR: missing roomId (sid={sid})")
         return
 
+    # Join the room
     await sio.enter_room(sid, room)
-    print(f"[CHAT] {username} joined {room}")
+    print(f"[CHAT] {username} joined room {room}")
 
+    # Notify everyone in that room
     await sio.emit(
         "system_message",
-        {"msg": f"{username} joined {room}", "roomId": room},
+        {
+            "roomId": room,
+            "msg": f"{username} joined the room"
+        },
         room=room
     )
 
 
+# -------------------------------------------------------
+# 🔹 Chatroom: Send Message
+# -------------------------------------------------------
 @sio.event
 async def send_message(sid, data):
     """
-    data = { roomId, text, senderName }
+    Broadcast a user message to the room
+    data example:
+    {
+        "roomId": "python-room",
+        "text": "Hello everyone!",
+        "senderName": "Jatin"
+    }
     """
+
     room = data.get("roomId")
     text = data.get("text")
     sender = data.get("senderName", "Anonymous")
 
-    if not room or not text:
-        print(f"[send_message] Invalid msg from {sid}")
+    # Validation
+    if not room:
+        print(f"[send_message] ERROR: missing roomId (sid={sid})")
+        return
+    if not text:
+        print(f"[send_message] ERROR: empty message (sid={sid})")
         return
 
     print(f"[CHAT][{room}] {sender}: {text}")
 
+    # Broadcast message to room
     await sio.emit(
         "receive_message",
         {
@@ -58,3 +82,11 @@ async def send_message(sid, data):
         },
         room=room
     )
+
+
+# -------------------------------------------------------
+# 🔹 OPTIONAL: User disconnected from chat (not required)
+# -------------------------------------------------------
+@sio.event
+async def disconnect(sid):
+    print(f"[CHAT] socket disconnected: {sid}")
