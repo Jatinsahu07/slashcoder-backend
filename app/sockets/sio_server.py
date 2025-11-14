@@ -84,3 +84,13 @@ async def send_message(sid, data):
 @sio.event
 async def disconnect(sid):
     print(f"[CHAT] socket disconnected: {sid}")
+
+    # Auto-forfeit logic from matchmaking
+    from app.sockets.matchmaking import matches, finalize_match
+
+    for room, match in list(matches.items()):
+        if sid in match["players"]:
+            opponent = match["players"][0] if match["players"][1] == sid else match["players"][1]
+            await finalize_match(room, winner_sid=opponent, loser_sid=sid)
+            break
+
