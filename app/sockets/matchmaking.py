@@ -19,24 +19,29 @@ from firebase_admin import credentials, firestore
 # ---------- SINGLE sio instance ----------
 sio = socketio.AsyncServer(
     async_mode="asgi",
-    cors_allowed_origins=[
-        "http://localhost:3000",
-        "https://slashcoder-frontend.vercel.app"
-    ],
+    cors_allowed_origins="*",
     allow_credentials=True
 )
 
 
-# ---------- FIRESTORE INIT ----------
-import os
+# ---------- FIRESTORE INIT (Railway Safe) ----------
+import os, json
 
-KEY_PATH = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "firebase_key.json")
 
+FIREBASE_KEY = os.getenv("FIREBASE_KEY")
+if not FIREBASE_KEY:
+    raise Exception("Missing FIREBASE_KEY in Railway variables.")
+
+# Convert JSON string → dict
+service_account_info = json.loads(FIREBASE_KEY)
+
+# Initialize Firebase Admin safely
 if not firebase_admin._apps:
-    cred = credentials.Certificate(KEY_PATH)
+    cred = credentials.Certificate(service_account_info)
     firebase_admin.initialize_app(cred)
 
-db = firestore.client()   # ← ADD THIS
+db = firestore.client()
+
 
 
 # ---------- CONFIG ----------
@@ -875,17 +880,18 @@ async def join_queue(sid, data):
 
     # CASE 2: Waiting player exists → check if SID still alive
     p1 = waiting_player
-
-    # check if old player is disconnected
-    active_sids = sio.manager.rooms.get("/", {})
+    
     
 
+    # check if old player is disconnected
+    active_sids = sio.manager.rooms.get("/", {}).keys()
 
     if p1["sid"] not in active_sids:
         print("[QUEUE] old waiting player disconnected. Replacing with new player.")
         waiting_player = {"sid": sid, "uid": uid, "name": name, "xp": xp}
         await sio.emit("waiting", {"msg": "Waiting for opponent..."}, to=sid)
         return
+
 
     # NOW WE HAVE TWO REAL ACTIVE PLAYERS
     p2 = {"sid": sid, "uid": uid, "name": name, "xp": xp}
@@ -1182,4 +1188,4 @@ async def finalize_draw(room):
     except:
         pass
 
-
+ 
