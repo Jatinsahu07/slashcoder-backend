@@ -19,10 +19,16 @@ from firebase_admin import credentials, firestore
 sio = socketio.AsyncServer(cors_allowed_origins="*", async_mode="asgi")
 
 # ---------- FIRESTORE INIT ----------
+import os
+
+KEY_PATH = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "firebase_key.json")
+
 if not firebase_admin._apps:
-    cred = credentials.Certificate("firebase_key.json")
+    cred = credentials.Certificate(KEY_PATH)
     firebase_admin.initialize_app(cred)
-db = firestore.client()
+
+db = firestore.client()   # ← ADD THIS
+
 
 # ---------- CONFIG ----------
 JUDGE0_URL = "https://ce.judge0.com/submissions?base64_encoded=false&wait=true"
@@ -862,7 +868,9 @@ async def join_queue(sid, data):
     p1 = waiting_player
 
     # check if old player is disconnected
-    active_sids = sio.manager.rooms.get("/", {}).get(None, {})
+    active_sids = sio.manager.rooms.get("/", {})
+    
+
 
     if p1["sid"] not in active_sids:
         print("[QUEUE] old waiting player disconnected. Replacing with new player.")
@@ -911,28 +919,7 @@ async def join_queue(sid, data):
     await sio.emit("match_found", {**payload, "opponent": {"name": p1["name"], "uid": p1["uid"]}}, to=p2["sid"])
 
 
-    payload = {
-        "room": room,
-        "problem": {
-            "id": matches[room]["problem"].get("id"),
-            "title": matches[room]["problem"].get("title"),
-            "description": matches[room]["problem"].get("description"),
-            "description_full": matches[room]["problem"].get("description_full", matches[room]["problem"].get("description","")),
-            "input": matches[room]["problem"].get("input",""),
-            "output": matches[room]["problem"].get("output",""),
-            "example": matches[room]["problem"].get("example",""),
-            "constraints": matches[room]["problem"].get("constraints",""),
-            "explanation": matches[room]["problem"].get("explanation",""),
-            "difficulty": difficulty
-        },
-        "timeLimit": matches[room]["timeLimit"],
-        "testsCount": len(tests),
-        "startTime": start_time
-    }
 
-    # emit to both players with appropriate opponent info
-    await sio.emit("match_found", {**payload, "opponent":{"name": p2["name"], "uid": p2["uid"]}}, to=p1["sid"])
-    await sio.emit("match_found", {**payload, "opponent":{"name": p1["name"], "uid": p1["uid"]}}, to=p2["sid"])
 
 # --------------------------
 # run_code (custom stdin)
