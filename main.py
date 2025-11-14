@@ -1,10 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import socketio
+import os
 
+# Import Firebase (ensures initialization)
+from app.core.firebase import db
+
+# Import routes
 from app.sockets.sio_server import sio
-from app.routes import ai_tutor
-from app.routes import stats
+from app.routes import ai_tutor, stats
 from app.routes.practice import router as practice_router
 
 # ------------------------------------
@@ -13,11 +17,14 @@ from app.routes.practice import router as practice_router
 app = FastAPI(title="SlashCoder Backend")
 
 # ------------------------------------
-# CORS (FINAL for Vercel + Localhost)
+# CORS for Railway + Vercel + Localhost
 # ------------------------------------
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
 ALLOWED_ORIGINS = [
+    FRONTEND_URL,                                    # dynamic
     "http://localhost:3000",
-    "https://slashcoder-frontend.vercel.app",  # 🚀 your frontend domain
+    "https://slashcoder-frontend.vercel.app",
 ]
 
 app.add_middleware(
@@ -37,17 +44,16 @@ app.include_router(practice_router)
 
 @app.get("/")
 async def home():
-    return {"message": "SlashCoder backend OK"}
+    return {"message": "SlashCoder backend LIVE on Railway!"}
 
 # ------------------------------------
-# Socket.IO ASGI App
+# Socket.IO ASGI bridge
 # ------------------------------------
 socket_app = socketio.ASGIApp(
     sio,
     other_asgi_app=app,
-    socketio_path="/socket.io"   # ✔ matches frontend
+    socketio_path="/socket.io"
 )
 
-# FINAL WebSocket endpoint:
-# wss://slashcoder-backend.onrender.com/ws/socket.io
+# WebSocket endpoint for frontend
 app.mount("/ws", socket_app)
