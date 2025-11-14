@@ -1,8 +1,9 @@
 fastapi
 uvicorn[standard]
-python-socketio[asgi]
+python-socketio
+python-engineio
 firebase-admin
 httpx
-pydantic
-google-generativeai
+requests
 python-dotenv
+google-generativeai
