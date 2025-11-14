@@ -1,2 +1,8 @@
+fastapi
+uvicorn[standard]
+python-socketio[asgi]
+firebase-admin
+httpx
+pydantic
 google-generativeai
 python-dotenv
