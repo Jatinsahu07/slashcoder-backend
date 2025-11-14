@@ -3,6 +3,7 @@ uvicorn[standard]
 python-socketio
 python-engineio
 firebase-admin
+google-cloud-firestore
 httpx
 requests
 python-dotenv
