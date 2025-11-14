@@ -1,11 +1,13 @@
+# slashcoder-backend/app/routes/practice.py
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import datetime
 
-# Import your curated problems with built-in tests
+# Your curated practice problems
 from app.data.practice_problems import PRACTICE_PROBLEMS
 
-# Reuse ONLY judge + Firestore helpers from matchmaking
+# Reuse Judge0 + Firestore from matchmaking
 from app.sockets.matchmaking import (
     judge_run,
     compare_output,
@@ -14,6 +16,7 @@ from app.sockets.matchmaking import (
 )
 
 router = APIRouter(prefix="/api/practice", tags=["Practice"])
+
 
 XP_MAP = {
     "Very Easy": 10,
@@ -39,7 +42,11 @@ class SubmitPayload(BaseModel):
 # ------------------- GET PROBLEMS -------------------
 @router.get("/problems")
 async def get_problems():
+    """
+    Returns all practice problems with metadata.
+    """
     output = []
+
     for diff, problems in PRACTICE_PROBLEMS.items():
         for p in problems:
             output.append({
@@ -54,6 +61,7 @@ async def get_problems():
                 "explanation": p.get("explanation", ""),
                 "difficulty": diff
             })
+
     return output
 
 
@@ -61,7 +69,7 @@ async def get_problems():
 @router.post("/run")
 async def run_code(payload: RunPayload):
     """
-    Runs the user's code ONCE using custom input.
+    Runs the user's code ONCE with custom input.
     Does NOT evaluate hidden tests.
     """
 
@@ -71,10 +79,12 @@ async def run_code(payload: RunPayload):
             payload.code,
             payload.stdin or ""
         )
+
         return {
             "mode": "custom",
             "stdout": result or ""
         }
+
     except Exception as e:
         return {
             "mode": "custom",
@@ -85,10 +95,13 @@ async def run_code(payload: RunPayload):
 # ------------------- SUBMIT (HIDDEN TESTS + XP) -------------------
 @router.post("/submit")
 async def submit_code(payload: SubmitPayload):
+    """
+    Runs all hidden tests + awards XP if solved.
+    """
 
-    # 1. FIND PROBLEM
+    # 1. Locate problem
     problem = None
-    difficulty = "Easy"
+    difficulty = None
 
     for diff, arr in PRACTICE_PROBLEMS.items():
         for p in arr:
@@ -102,20 +115,18 @@ async def submit_code(payload: SubmitPayload):
     if not problem:
         raise HTTPException(status_code=404, detail="Problem not found")
 
-
-    # 2. USE ONLY YOUR OWN TESTCASES (NO MATCHMAKING TESTS)
+    # 2. Fetch tests
     tests = problem.get("tests", [])
     if not tests:
-        raise HTTPException(status_code=400, detail="Problem has no testcases configured.")
+        raise HTTPException(status_code=400, detail="No testcases found for this problem")
 
-
-    # 3. RUN TESTCASES
+    # 3. Execute hidden tests
     results = []
     passed = 0
 
     for idx, t in enumerate(tests):
-        test_input = t["input"]
-        expected = t["output"]
+        test_input = t.get("input", "")
+        expected = str(t.get("output", "")).strip()
 
         try:
             raw = await judge_run(payload.language, payload.code, test_input)
@@ -124,6 +135,7 @@ async def submit_code(payload: SubmitPayload):
             got = f"[error] {e}"
 
         ok = compare_output(got, expected)
+
         if ok:
             passed += 1
 
@@ -135,18 +147,16 @@ async def submit_code(payload: SubmitPayload):
             "passed": ok
         })
 
-
     total = len(tests)
 
-    # 4. XP LOGIC
+    # 4. XP calculation
     xp_gain = 0
-    completed = False
+    completed = passed == total
 
-    if passed == total:
-        completed = True
+    if completed:
         xp_gain = XP_MAP.get(difficulty, 10)
 
-        # update Firestore atomically
+        # Firestore update atomic
         user_ref = db.collection("users").document(payload.uid)
         user_ref.set({
             "xp": firestore.Increment(xp_gain),
@@ -154,8 +164,7 @@ async def submit_code(payload: SubmitPayload):
             "updatedAt": datetime.datetime.utcnow()
         }, merge=True)
 
-
-    # 5. RETURN FULL RESULT
+    # 5. Return final response
     return {
         "passed": passed,
         "total": total,
