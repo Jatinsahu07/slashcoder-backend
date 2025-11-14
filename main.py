@@ -4,7 +4,8 @@ import socketio
 import os
 
 # Import Firebase (ensures initialization)
-from app.core.firebase import db
+from app.utils.firebase_init import db
+
 
 # Import routes
 from app.sockets.sio_server import sio
