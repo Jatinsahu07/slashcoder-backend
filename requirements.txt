@@ -16,5 +16,6 @@ google-generativeai>=0.8.0
 
 
 
+
 grpcio==1.57.0
 grpcio-status==1.57.0
