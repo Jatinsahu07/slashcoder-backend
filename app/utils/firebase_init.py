@@ -1,21 +1,23 @@
 import firebase_admin
 from firebase_admin import credentials, auth, firestore
-import os
+import os, json
 
-# Define the path to the key
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-FIREBASE_KEY_PATH = os.path.join(BASE_DIR, "firebase_key.json")
+# Load service account JSON from Fly secret
+FIREBASE_KEY = os.getenv("FIREBASE_KEY")
 
-print(f"🔍 Firebase key path: {FIREBASE_KEY_PATH}")
-print(f"📂 Exists: {os.path.exists(FIREBASE_KEY_PATH)}")
+if not FIREBASE_KEY:
+    raise Exception("Missing FIREBASE_KEY in environment variables.")
 
-# Initialize Firebase app (only once)
+# Convert secret string → dict
+service_account_info = json.loads(FIREBASE_KEY)
+
+# Initialize Firebase
 if not firebase_admin._apps:
-    cred = credentials.Certificate(FIREBASE_KEY_PATH)
+    cred = credentials.Certificate(service_account_info)
     firebase_admin.initialize_app(cred)
 
-# Initialize Firestore databasea
-db = firestore.client()   # ✅ this line adds Firestore
+# Firestore client
+db = firestore.client()
 
-# Export firebase auth and db
+# Exported auth
 firebase_auth = auth
