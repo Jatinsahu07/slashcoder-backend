@@ -69,16 +69,22 @@ async def ai_tutor_stream(request: Request):
 
     def stream_response():
         try:
-            # NEW correct API for Gemini 2.5 streaming:
-            for chunk in model.generate(
+            # CORRECT GEMINI 2.5 STREAMING API
+            response = model.generate_content(
                 prompt,
                 stream=True,
-                temperature=0.7
-            ):
-                if chunk.text:
+                generation_config={
+                    "temperature": 0.7,
+                    "max_output_tokens": 350
+                }
+            )
+
+            for chunk in response:
+                if "text" in chunk and chunk.text:
                     yield chunk.text
 
         except Exception as e:
             yield f"[Error] {e}"
 
     return StreamingResponse(stream_response(), media_type="text/plain")
+
