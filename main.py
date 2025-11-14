@@ -13,22 +13,23 @@ from app.routes.practice import router as practice_router
 app = FastAPI(title="SlashCoder Backend")
 
 # ------------------------------------
-# CORS for Vercel + Localhost + Render
+# CORS (FINAL for Vercel + Localhost)
 # ------------------------------------
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "https://slashcoder-frontend.vercel.app",  # 🚀 your frontend domain
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://your-frontend.vercel.app",
-        "https://your-render-backend.onrender.com"  # optional
-    ],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # ------------------------------------
-# Routes
+# API Routes
 # ------------------------------------
 app.include_router(ai_tutor.router)
 app.include_router(stats.router)
@@ -44,8 +45,9 @@ async def home():
 socket_app = socketio.ASGIApp(
     sio,
     other_asgi_app=app,
-    socketio_path="/socket.io"
+    socketio_path="/socket.io"   # ✔ matches frontend
 )
 
-# Final WebSocket endpoint = /ws/socket.io
+# FINAL WebSocket endpoint:
+# wss://slashcoder-backend.onrender.com/ws/socket.io
 app.mount("/ws", socket_app)
