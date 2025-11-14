@@ -7,16 +7,22 @@ from app.routes import ai_tutor
 from app.routes import stats
 from app.routes.practice import router as practice_router
 
-app = FastAPI(title="SlashCoder Backend")
+# FastAPI instance
+app = FastAPI(title="SlashCoder Backend", root_path="/")
 
+# CORS for Vercel + Localhost
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://your-frontend.vercel.app",  # <-- change this
+    ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ROUTERS
+# Routes
 app.include_router(ai_tutor.router)
 app.include_router(stats.router)
 app.include_router(practice_router)
@@ -25,12 +31,12 @@ app.include_router(practice_router)
 async def home():
     return {"message": "SlashCoder backend OK"}
 
-# IMPORTANT FIX:
+# Socket.IO
 socket_app = socketio.ASGIApp(
     sio,
     other_asgi_app=app,
     socketio_path="/socket.io"
 )
 
-# MOUNT AT /ws (final socket path = /ws/socket.io)
+# Final WebSocket endpoint → /ws/socket.io
 app.mount("/ws", socket_app)
