@@ -15,8 +15,17 @@ import socketio
 import firebase_admin
 from firebase_admin import credentials, firestore
 
+
 # ---------- SINGLE sio instance ----------
-sio = socketio.AsyncServer(cors_allowed_origins="*", async_mode="asgi")
+sio = socketio.AsyncServer(
+    async_mode="asgi",
+    cors_allowed_origins=[
+        "http://localhost:3000",
+        "https://slashcoder-frontend.vercel.app"
+    ],
+    allow_credentials=True
+)
+
 
 # ---------- FIRESTORE INIT ----------
 import os
