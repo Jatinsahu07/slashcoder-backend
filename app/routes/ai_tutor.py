@@ -16,8 +16,9 @@ if not GEMINI_API_KEY:
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-PREFERRED_MODEL = "gemini-2.0-flash"
-FALLBACK_MODEL = "gemini-1.5-pro"
+PREFERRED_MODEL = "gemini-1.5-flash"
+FALLBACK_MODEL = "gemini-1.5-flash"
+
 
 
 def get_model():
