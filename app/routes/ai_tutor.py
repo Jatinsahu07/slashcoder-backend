@@ -12,37 +12,43 @@ if not GEMINI_API_KEY:
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-MODEL_NAME = "models/chat-bison-001"
-FALLBACK_MODEL = "models/text-bison-001"
+MODEL = "gemini-1.5-flash"
 
 def load_model():
-    try:
-        return genai.GenerativeModel(MODEL_NAME)
-    except:
-        return genai.GenerativeModel(FALLBACK_MODEL)
+    return genai.GenerativeModel(MODEL)
 
+# Normal Response
 @router.post("/tutor")
 async def ai_tutor(request: Request):
     body = await request.json()
     prompt = body.get("prompt", "").strip()
-
+    
     if not prompt:
-        return {"response": "⚠️ Empty prompt."}
+        return {"response": "⚠️ Prompt is empty."}
 
     model = load_model()
 
     try:
-        response = model.generate_content(prompt)
+        response = model.generate_content(
+            prompt,
+            generation_config={
+                "temperature": 0.7,
+                "max_output_tokens": 300
+            }
+        )
 
-        if not response:
-            return {"response": "⚠️ Empty response."}
+        if response.text:
+            return {"response": response.text}
 
-        return {"response": response.text}
+        return {"response": "⚠️ Gemini returned empty content."}
 
     except Exception as e:
         print("Gemini Error:", e)
-        return JSONResponse({"response": f"⚠️ Error: {e}"}, status_code=500)
+        return JSONResponse(
+            {"response": f"⚠️ Error: {e}"}, status_code=500
+        )
 
+# Streaming Response
 @router.post("/tutor/stream")
 async def ai_tutor_stream(request: Request):
     body = await request.json()
@@ -53,15 +59,22 @@ async def ai_tutor_stream(request: Request):
 
     model = load_model()
 
-    def generate_stream():
+    def stream_output():
         try:
-            response = model.generate_content(prompt, stream=True)
+            response = model.generate_content(
+                prompt,
+                stream=True,
+                generation_config={
+                    "temperature": 0.7,
+                    "max_output_tokens": 300
+                }
+            )
 
             for chunk in response:
-                if hasattr(chunk, "text") and chunk.text:
+                if chunk.text:
                     yield chunk.text
 
         except Exception as e:
             yield f"[Error] {e}"
 
-    return StreamingResponse(generate_stream(), media_type="text/plain")
+    return StreamingResponse(stream_output(), media_type="text/plain")
