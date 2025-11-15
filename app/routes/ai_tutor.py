@@ -2,59 +2,61 @@ from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 import google.generativeai as genai
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
 
 router = APIRouter(prefix="/ai", tags=["Slash AI"], dependencies=[])
 
-# ---------------------------------------------
-# Gemini API Setup
-# ---------------------------------------------
+# -------------------------------------------------
+# Gemini Setup
+# -------------------------------------------------
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
-    raise ValueError("Missing GEMINI_API_KEY in environment")
+    raise ValueError("❌ Missing GEMINI_API_KEY")
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-# Gemini 2.5 Models
-PREFERRED_MODEL = "gemini-2.5-flash"
-FALLBACK_MODEL = "gemini-2.5-flash-lite"
+MODEL_NAME = "gemini-2.5-flash"         # works for chat
+FALLBACK_MODEL = "gemini-1.5-flash"     # guaranteed working
 
-
-def get_model():
+def load_model():
     try:
-        return genai.GenerativeModel(PREFERRED_MODEL)
+        return genai.GenerativeModel(MODEL_NAME)
     except:
         return genai.GenerativeModel(FALLBACK_MODEL)
 
-# ---------------------------------------------
-# ✨ FIXED: Normal Tutor Endpoint
-# ---------------------------------------------
+# -------------------------------------------------
+# ✨ Normal (non-streaming) Response
+# -------------------------------------------------
 @router.post("/tutor")
 async def ai_tutor(request: Request):
-    data = await request.json()
-    prompt = data.get("prompt", "").strip()
+    body = await request.json()
+    prompt = body.get("prompt", "").strip()
 
     if not prompt:
         return {"response": "⚠️ Empty prompt."}
 
-    model = get_model()
+    model = load_model()
 
     try:
         response = model.generate_content(
-            prompt,
+            [prompt],   # <<< IMPORTANT FOR GEMINI 2.x
             generation_config={
                 "temperature": 0.7,
                 "max_output_tokens": 350,
             }
         )
 
-        # Gemini 2.5: extract text safely
-        if response.parts:
-            text = "".join([p.text for p in response.parts if hasattr(p, "text")])
-        else:
-            text = "⚠️ No content returned from Gemini."
+        # Gemini 2.x returns "candidates[0].content.parts"
+        if not response.candidates:
+            return {"response": "⚠️ Gemini returned no response."}
+
+        parts = response.candidates[0].content.parts
+        if not parts:
+            return {"response": "⚠️ Gemini returned empty content."}
+
+        text = parts[0].text if hasattr(parts[0], "text") else ""
+
+        if not text:
+            return {"response": "⚠️ Gemini returned no text content."}
 
         return {"response": text}
 
@@ -62,35 +64,38 @@ async def ai_tutor(request: Request):
         print("Gemini error:", e)
         return JSONResponse({"response": f"⚠️ Error: {e}"}, status_code=500)
 
-
-# ---------------------------------------------
-# ✨ FIXED: Streaming Endpoint
-# ---------------------------------------------
+# -------------------------------------------------
+# ⚡ Streaming Response
+# -------------------------------------------------
 @router.post("/tutor/stream")
 async def ai_tutor_stream(request: Request):
-    data = await request.json()
-    prompt = data.get("prompt", "").strip()
+    body = await request.json()
+    prompt = body.get("prompt", "").strip()
 
     if not prompt:
         return StreamingResponse(iter(["⚠️ Empty prompt"]), media_type="text/plain")
 
-    model = get_model()
+    model = load_model()
 
-    def stream_data():
+    def generate_stream():
         try:
-            for chunk in model.generate_content(
-                prompt,
+            response = model.generate_content(
+                [prompt], 
                 stream=True,
                 generation_config={
                     "temperature": 0.7,
-                    "max_output_tokens": 350
+                    "max_output_tokens": 350,
                 }
-            ):
-                if chunk.parts:
-                    for p in chunk.parts:
+            )
+
+            for chunk in response:
+                if chunk.candidates:
+                    parts = chunk.candidates[0].content.parts
+                    for p in parts:
                         if hasattr(p, "text"):
                             yield p.text
+
         except Exception as e:
             yield f"[Error] {e}"
 
-    return StreamingResponse(stream_data(), media_type="text/plain")
+    return StreamingResponse(generate_stream(), media_type="text/plain")
