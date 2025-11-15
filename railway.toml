@@ -1,3 +1,0 @@
-[build]
-builder = "heroku/buildpacks:20"
-pythonVersion = "3.10"
