@@ -1,10 +1,8 @@
 fastapi
 uvicorn[standard]
-python-socketio==5.11.1
-python-engineio==4.9.0
-google-generativeai>=0.8.5
+python-socketio
+python-engineio
+google-generativeai==0.8.2
 firebase-admin
-httpx
 python-dotenv
-pip install --upgrade google-generativeai
-
+httpx
