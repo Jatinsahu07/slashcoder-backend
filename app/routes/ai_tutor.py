@@ -1,39 +1,40 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 import google.generativeai as genai
-import os, time
+import os
 from dotenv import load_dotenv
 
 load_dotenv()
+
 router = APIRouter(
     prefix="/ai",
     tags=["Slash AI"],
-    dependencies=[]   # ⬅ BYPASS AUTH HERE
+    dependencies=[]  # allow public access
 )
-
 
 # -------------------------------------------------
 # 🔐 Gemini API Setup
 # -------------------------------------------------
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
-    raise ValueError("Missing GEMINI_API_KEY in .env")
+    raise ValueError("Missing GEMINI_API_KEY in environment variables.")
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-# Gemini 2.5 Models
 PREFERRED_MODEL = "gemini-2.5-flash"
 FALLBACK_MODEL = "gemini-2.5-flash-lite"
 
+
 def get_model():
+    """Return a working Gemini 2.5 model."""
     try:
         return genai.GenerativeModel(PREFERRED_MODEL)
-    except:
+    except Exception:
         return genai.GenerativeModel(FALLBACK_MODEL)
 
 
 # -------------------------------------------------
-# 🧠 Standard Tutor Endpoint
+# 🧠 Standard Tutor Endpoint (non-streaming)
 # -------------------------------------------------
 @router.post("/tutor")
 async def ai_tutor(request: Request):
@@ -46,21 +47,28 @@ async def ai_tutor(request: Request):
     model = get_model()
 
     try:
-        result = model.generate(
+        # CORRECT GEMINI 2.5 CALL
+        result = model.generate_content(
             prompt,
-            temperature=0.6,
-            max_output_tokens=350
+            generation_config={
+                "temperature": 0.6,
+                "max_output_tokens": 350
+            }
         )
 
+        # return the generated text
         return {"response": result.text}
 
     except Exception as e:
         print("Gemini error:", e)
-        return JSONResponse({"response": f"⚠️ Error: {e}"}, status_code=500)
+        return JSONResponse(
+            {"response": f"⚠️ Error: {str(e)}"},
+            status_code=500
+        )
 
 
 # -------------------------------------------------
-# ⚡ Streaming Tutor Endpoint (Gemini 2.5 Correct)
+# ⚡ Streaming Tutor Endpoint (token-by-token)
 # -------------------------------------------------
 @router.post("/tutor/stream")
 async def ai_tutor_stream(request: Request):
@@ -72,9 +80,9 @@ async def ai_tutor_stream(request: Request):
 
     model = get_model()
 
-    def stream_response():
+    def stream():
         try:
-            # CORRECT GEMINI 2.5 STREAMING API
+            # Correct streaming API for Gemini 2.5
             response = model.generate_content(
                 prompt,
                 stream=True,
@@ -85,11 +93,10 @@ async def ai_tutor_stream(request: Request):
             )
 
             for chunk in response:
-                if "text" in chunk and chunk.text:
+                if hasattr(chunk, "text") and chunk.text:
                     yield chunk.text
 
         except Exception as e:
-            yield f"[Error] {e}"
+            yield f"[Error] {str(e)}"
 
-    return StreamingResponse(stream_response(), media_type="text/plain")
-
+    return StreamingResponse(stream(), media_type="text/plain")
