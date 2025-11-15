@@ -6,40 +6,35 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-router = APIRouter(
-    prefix="/ai",
-    tags=["Slash AI"],
-    dependencies=[]  # allow public access
-)
+router = APIRouter(prefix="/ai", tags=["Slash AI"], dependencies=[])
 
-# -------------------------------------------------
-# 🔐 Gemini API Setup
-# -------------------------------------------------
+# ---------------------------------------------
+# Gemini API Setup
+# ---------------------------------------------
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
-    raise ValueError("Missing GEMINI_API_KEY in environment variables.")
+    raise ValueError("Missing GEMINI_API_KEY in environment")
 
 genai.configure(api_key=GEMINI_API_KEY)
 
+# Gemini 2.5 Models
 PREFERRED_MODEL = "gemini-2.5-flash"
 FALLBACK_MODEL = "gemini-2.5-flash-lite"
 
 
 def get_model():
-    """Return a working Gemini 2.5 model."""
     try:
         return genai.GenerativeModel(PREFERRED_MODEL)
-    except Exception:
+    except:
         return genai.GenerativeModel(FALLBACK_MODEL)
 
-
-# -------------------------------------------------
-# 🧠 Standard Tutor Endpoint (non-streaming)
-# -------------------------------------------------
+# ---------------------------------------------
+# ✨ FIXED: Normal Tutor Endpoint
+# ---------------------------------------------
 @router.post("/tutor")
 async def ai_tutor(request: Request):
-    body = await request.json()
-    prompt = body.get("prompt", "").strip()
+    data = await request.json()
+    prompt = data.get("prompt", "").strip()
 
     if not prompt:
         return {"response": "⚠️ Empty prompt."}
@@ -47,56 +42,55 @@ async def ai_tutor(request: Request):
     model = get_model()
 
     try:
-        # CORRECT GEMINI 2.5 CALL
-        result = model.generate_content(
+        response = model.generate_content(
             prompt,
             generation_config={
-                "temperature": 0.6,
-                "max_output_tokens": 350
+                "temperature": 0.7,
+                "max_output_tokens": 350,
             }
         )
 
-        # return the generated text
-        return {"response": result.text}
+        # Gemini 2.5: extract text safely
+        if response.parts:
+            text = "".join([p.text for p in response.parts if hasattr(p, "text")])
+        else:
+            text = "⚠️ No content returned from Gemini."
+
+        return {"response": text}
 
     except Exception as e:
         print("Gemini error:", e)
-        return JSONResponse(
-            {"response": f"⚠️ Error: {str(e)}"},
-            status_code=500
-        )
+        return JSONResponse({"response": f"⚠️ Error: {e}"}, status_code=500)
 
 
-# -------------------------------------------------
-# ⚡ Streaming Tutor Endpoint (token-by-token)
-# -------------------------------------------------
+# ---------------------------------------------
+# ✨ FIXED: Streaming Endpoint
+# ---------------------------------------------
 @router.post("/tutor/stream")
 async def ai_tutor_stream(request: Request):
-    body = await request.json()
-    prompt = body.get("prompt", "").strip()
+    data = await request.json()
+    prompt = data.get("prompt", "").strip()
 
     if not prompt:
         return StreamingResponse(iter(["⚠️ Empty prompt"]), media_type="text/plain")
 
     model = get_model()
 
-    def stream():
+    def stream_data():
         try:
-            # Correct streaming API for Gemini 2.5
-            response = model.generate_content(
+            for chunk in model.generate_content(
                 prompt,
                 stream=True,
                 generation_config={
                     "temperature": 0.7,
                     "max_output_tokens": 350
                 }
-            )
-
-            for chunk in response:
-                if hasattr(chunk, "text") and chunk.text:
-                    yield chunk.text
-
+            ):
+                if chunk.parts:
+                    for p in chunk.parts:
+                        if hasattr(p, "text"):
+                            yield p.text
         except Exception as e:
-            yield f"[Error] {str(e)}"
+            yield f"[Error] {e}"
 
-    return StreamingResponse(stream(), media_type="text/plain")
+    return StreamingResponse(stream_data(), media_type="text/plain")
