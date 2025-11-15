@@ -7,8 +7,9 @@ from starlette.middleware import Middleware
 from starlette.applications import Starlette
 
 # Load routes
-from app.routes import ai_tutor, stats
+from app.routes import ai_tutor, stats, sync_user
 from app.routes.practice import router as practice_router
+
 
 # Load global Socket.IO server
 from app.sockets.sio_server import sio
@@ -52,6 +53,7 @@ fastapi_app = FastAPI(title="SlashCoder Backend")
 fastapi_app.include_router(ai_tutor.router)
 fastapi_app.include_router(stats.router)
 fastapi_app.include_router(practice_router)
+fastapi_app.include_router(sync_user.router) 
 
 @fastapi_app.get("/")
 async def home():
