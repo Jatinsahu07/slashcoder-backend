@@ -16,7 +16,7 @@ if not GEMINI_API_KEY:
 genai.configure(api_key=GEMINI_API_KEY)
 
 # Best stable free-tier models
-PREFERRED_MODEL = "gemini-2.5-flash-live"
+PREFERRED_MODEL = "gemini-2.5-flash"
 FALLBACK_MODEL = "gemini-1.5-flash"
 
 def model_loader():
