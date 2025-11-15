@@ -5,7 +5,12 @@ import os, time
 from dotenv import load_dotenv
 
 load_dotenv()
-router = APIRouter(prefix="/ai", tags=["Slash AI"])
+router = APIRouter(
+    prefix="/ai",
+    tags=["Slash AI"],
+    dependencies=[]   # ⬅ BYPASS AUTH HERE
+)
+
 
 # -------------------------------------------------
 # 🔐 Gemini API Setup
