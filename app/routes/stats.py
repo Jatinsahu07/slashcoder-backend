@@ -70,3 +70,37 @@ async def update_stats(payload: dict):
         "new_xp": new_xp,
         "new_level": new_level
     }
+
+@router.get("/user-stats/{uid}")
+async def get_user_stats(uid: str):
+    """
+    Return user's wins, losses, xp for dashboard & profile.
+    Frontend calls this on every page load.
+    """
+
+    try:
+        snap = db.collection("users").document(uid).get()
+    except Exception as e:
+        return {"error": f"Firestore error: {e}"}
+
+    if not snap.exists:
+        # return default zero stats
+        return {
+            "wins": 0,
+            "losses": 0,
+            "xp": 0,
+            "level": 1
+        }
+
+    data = snap.to_dict()
+
+    xp = int(data.get("xp", 0))
+    level = 1 + xp // 100
+
+    return {
+        "wins": data.get("wins", 0),
+        "losses": data.get("losses", 0),
+        "xp": xp,
+        "level": level
+    }
+
