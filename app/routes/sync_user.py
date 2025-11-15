@@ -3,6 +3,7 @@ from fastapi import APIRouter
 
 router = APIRouter(prefix="/api", tags=["User Sync"])
 
-@router.get("/sync-user")
-async def sync_user():
+@router.post("/sync-user")
+async def sync_user(payload: dict):
     return {"ok": True}
+
