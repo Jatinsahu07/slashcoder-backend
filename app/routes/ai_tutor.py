@@ -14,15 +14,11 @@ if not GEMINI_API_KEY:
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-PREFERRED_MODEL = "gemini-1.5-flash-latest"
-FALLBACK_MODEL = "gemini-1.0-pro"
+MODEL_NAME = "gemini-pro"     # <= WORKS IN V1BETA
 
 
 def load_model():
-    try:
-        return genai.GenerativeModel(PREFERRED_MODEL)
-    except:
-        return genai.GenerativeModel(FALLBACK_MODEL)
+    return genai.GenerativeModel(MODEL_NAME)
 
 
 # ------------------------------
@@ -43,25 +39,12 @@ async def ai_tutor(request: Request):
             prompt,
             generation_config={
                 "temperature": 0.7,
-                "max_output_tokens": 350,
+                "max_output_tokens": 300,
             }
         )
 
-        # Gemini returns candidates
-        if not response.candidates:
-            return {"response": "⚠️ Gemini returned no response."}
-
-        parts = response.candidates[0].content.parts
-
-        text = ""
-        for p in parts:
-            if hasattr(p, "text"):
-                text += p.text
-
-        if not text:
-            return {"response": "⚠️ Gemini returned empty content."}
-
-        return {"response": text}
+        # v1beta returns .text
+        return {"response": response.text}
 
     except Exception as e:
         print("Gemini Error:", e)
@@ -88,15 +71,13 @@ async def ai_tutor_stream(request: Request):
                 stream=True,
                 generation_config={
                     "temperature": 0.7,
-                    "max_output_tokens": 350,
+                    "max_output_tokens": 300,
                 }
             )
 
             for chunk in response:
-                if chunk.candidates:
-                    for part in chunk.candidates[0].content.parts:
-                        if hasattr(part, "text"):
-                            yield part.text
+                if chunk.text:
+                    yield chunk.text
 
         except Exception as e:
             yield f"[Error] {e}"
