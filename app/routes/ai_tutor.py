@@ -14,17 +14,26 @@ if not GEMINI_API_KEY:
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-MODEL_NAME = "gemini-2.5-flash"         # works for chat
-FALLBACK_MODEL = "gemini-1.5-flash"     # guaranteed working
+# -------------------------------------------------
+# Models (Free-tier compatible)
+# -------------------------------------------------
+PREFERRED_MODEL = "gemini-1.5-flash"   # Fast, reliable, works on free tier
+FALLBACK_MODEL = "gemini-pro"          # Backup model
+
 
 def load_model():
+    """
+    Load primary model, fallback if needed.
+    """
     try:
-        return genai.GenerativeModel(MODEL_NAME)
-    except:
+        return genai.GenerativeModel(PREFERRED_MODEL)
+    except Exception as e:
+        print("❗ Primary model failed, using fallback:", e)
         return genai.GenerativeModel(FALLBACK_MODEL)
 
+
 # -------------------------------------------------
-# ✨ Normal (non-streaming) Response
+# ✨ Normal (non-streaming) response
 # -------------------------------------------------
 @router.post("/tutor")
 async def ai_tutor(request: Request):
@@ -38,14 +47,14 @@ async def ai_tutor(request: Request):
 
     try:
         response = model.generate_content(
-            [prompt],   # <<< IMPORTANT FOR GEMINI 2.x
+            prompt,
             generation_config={
                 "temperature": 0.7,
                 "max_output_tokens": 350,
             }
         )
 
-        # Gemini 2.x returns "candidates[0].content.parts"
+        # Validate Gemini response
         if not response.candidates:
             return {"response": "⚠️ Gemini returned no response."}
 
@@ -53,16 +62,22 @@ async def ai_tutor(request: Request):
         if not parts:
             return {"response": "⚠️ Gemini returned empty content."}
 
-        text = parts[0].text if hasattr(parts[0], "text") else ""
+        # Extract text
+        text_output = ""
+        for part in parts:
+            if hasattr(part, "text"):
+                text_output += part.text
 
-        if not text:
+        if not text_output.strip():
             return {"response": "⚠️ Gemini returned no text content."}
 
-        return {"response": text}
+        return {"response": text_output}
 
     except Exception as e:
-        print("Gemini error:", e)
+        print("Gemini Error:", e)
         return JSONResponse({"response": f"⚠️ Error: {e}"}, status_code=500)
+
+
 
 # -------------------------------------------------
 # ⚡ Streaming Response
@@ -73,14 +88,16 @@ async def ai_tutor_stream(request: Request):
     prompt = body.get("prompt", "").strip()
 
     if not prompt:
-        return StreamingResponse(iter(["⚠️ Empty prompt"]), media_type="text/plain")
+        return StreamingResponse(
+            iter(["⚠️ Empty prompt"]), media_type="text/plain"
+        )
 
     model = load_model()
 
-    def generate_stream():
+    def stream_generator():
         try:
-            response = model.generate_content(
-                [prompt], 
+            stream = model.generate_content(
+                prompt,
                 stream=True,
                 generation_config={
                     "temperature": 0.7,
@@ -88,7 +105,7 @@ async def ai_tutor_stream(request: Request):
                 }
             )
 
-            for chunk in response:
+            for chunk in stream:
                 if chunk.candidates:
                     parts = chunk.candidates[0].content.parts
                     for p in parts:
@@ -98,4 +115,4 @@ async def ai_tutor_stream(request: Request):
         except Exception as e:
             yield f"[Error] {e}"
 
-    return StreamingResponse(generate_stream(), media_type="text/plain")
+    return StreamingResponse(stream_generator(), media_type="text/plain")
